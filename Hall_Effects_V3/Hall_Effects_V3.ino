@@ -71,13 +71,13 @@ void loop() {
   // send pulses as OSC
   sendOSC("/Bike1/Rotations/", inputEdges);
 
-  
-  if (inputEdges >= 10000) {
-    running = !running;                // toggle running variable
-    sendOSC("/Bike1/Winner", running);
+
+  if (running == true && inputEdges >= 10000) {
+    sendOSC("/Bike1/Winner", 1);
+    running = false;                // toggle running variable
     delay(5);
     sendOSC("/Bike1/Winner", 0);
-    
+
   }
 
   // calculate velocity
@@ -88,7 +88,7 @@ void loop() {
 
   // send average velocity as OSC
   sendOSC("/Bike1/Speed/", av_vel);
-  
+
 }
 
 
@@ -98,11 +98,13 @@ void turnOff() {
   inputEdges=0;
   state=false;
   interrupts();
+  running = false;
 }
 
 //Turn on output and set state variable to true
 void turnOn() {
   state=true;
+  running  = true;
 }
 
 
