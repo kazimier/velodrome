@@ -34,6 +34,8 @@ volatile int inputEdges = 0; // counter for the number of pulses since last rese
 volatile unsigned long lastEdgeTime = 0; // timestamp of last PAS pulse
 bool state=false; // variable holding information about the state of the output
 
+boolean running = false;
+
 void setup() {
   Serial.begin(115200);
   Ethernet.begin(mac,ip);
@@ -51,7 +53,7 @@ void loop() {
   unsigned long curTime=millis();
   if ((curTime>lastEdgeTime)&&((curTime-lastEdgeTime)>activityTimeoutMS)) {
     turnOff();
-
+    sendOSC("/Bike1/OFF", 1);
 
   }
 
@@ -60,12 +62,23 @@ void loop() {
     //if impulses are active, check if there were enough pulses to turn on
     if (inputEdges>startPulses) {
       turnOn();
+      sendOSC("/Bike1/ON", 1);
 
     }
   }
 
+
   // send pulses as OSC
-  sendOSC("/Bike1/Rotations/", inputEdges*0.0001);
+  sendOSC("/Bike1/Rotations/", inputEdges);
+
+  
+  if (inputEdges >= 10000) {
+    running = !running;                // toggle running variable
+    sendOSC("/Bike1/Winner", running);
+    delay(5);
+    sendOSC("/Bike1/Winner", 0);
+    
+  }
 
   // calculate velocity
   timer = millis()-lastEdgeTime;
