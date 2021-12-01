@@ -4,14 +4,22 @@
 #include <EthernetUdp.h>
 #include <SPI.h>
 #include <OSCMessage.h>
-#include <movingAvg.h>          // https://github.com/JChristensen/movingAvg
+#include <Smoothed.h>
 
+// 28.5mm diameter axle on stand
+// diameter = 0.0895m
+// 12 magnet sensor means distance covered per trigger = 0.0075m
 
+// delay (milliseconds) after winner until game restarts 
+const int winner_delay = 20000;
+// approximate distance = 750m
+const unsigned long runLength = 50000;
+// Allowed PAS signal inactivity time before turning off (microseconds)
+const unsigned long activityTimeoutMS= 10  * 1000000; 
 
 // running average over 200 samples
-movingAvg myRA_1(50);   // bike one
-movingAvg myRA_2(50);  // bike two
-
+Smoothed <float> myRA_1;
+Smoothed <float> myRA_2;
 
 EthernetUDP Udp;
 
@@ -26,8 +34,6 @@ byte mac [] = {
 const int PASPin_1 = 2;    // input from PAS 1
 const int PASPin_2 = 3;    // input from PAS 2
 
-const unsigned long runLength = 225000;   // approximate realtime = 740000
-const unsigned long activityTimeoutMS= 10000; // Allowed PAS signal inactivity time before turning off
 bool state=false; // variable holding information about the state of the output
 
 //Software constants bike 1
@@ -61,22 +67,22 @@ void setup() {
   pinMode(PASPin_2, INPUT); // initialize the PAS pin as a input
   attachInterrupt(digitalPinToInterrupt(PASPin_1), pulse_1, RISING); //Each rising edge on PAS pin causes an interrupt
   attachInterrupt(digitalPinToInterrupt(PASPin_2), pulse_2, RISING); //Each rising edge on PAS pin causes an interrupt
-  myRA_1.begin();
-  myRA_2.begin();
+  myRA_1.begin(SMOOTHED_AVERAGE, 30);
+  myRA_2.begin(SMOOTHED_AVERAGE, 30);
 }
 
-
 void loop() {
-  //If PAS signal is inactive for too long, turn off everything
-  unsigned long curTime=millis();
-  if ((curTime>lastEdgeTime_1)&&((curTime-lastEdgeTime_1)>activityTimeoutMS) || (curTime>lastEdgeTime_2)&&((curTime-lastEdgeTime_2)>activityTimeoutMS)) {
-    turnOff();
-    sendOSC("/Bike1/OFF", 1);
-    sendOSC("/Bike2/OFF", 1);   
-  }
+  //If PAS signal on either bike is inactive for too long, turn off everything
+//  unsigned long curTime=micros();
+//  if ((curTime>lastEdgeTime_1)&&((curTime-lastEdgeTime_1)>activityTimeoutMS) || (curTime>lastEdgeTime_2)&&((curTime-lastEdgeTime_2)>activityTimeoutMS)) {
+//    Serial.println("switching off");
+//    turnOff();
+//    sendOSC("/Bike1/OFF", 1);
+//    sendOSC("/Bike2/OFF", 1);
+//  }
 
   //If system is off, check if the impulses are active
-  if ((!state)&&((millis()-lastEdgeTime_1)<activityTimeoutMS)&&((millis()-lastEdgeTime_2)<activityTimeoutMS)) {
+  if ((!state)&&((micros()-lastEdgeTime_1)<activityTimeoutMS)&&((micros()-lastEdgeTime_2)<activityTimeoutMS)) {
     //if impulses are active, check if there were enough pulses from both bikes to turn on
     if ((inputEdges_1>startPulses_1)&&(inputEdges_2>startPulses_2)) {
       turnOn();
@@ -85,39 +91,42 @@ void loop() {
     }
   }
 
-
   // send pulses as OSC
-  sendOSC("/Bike1/Rotations/", inputEdges_1);
-  sendOSC("/Bike2/Rotations/", inputEdges_2);
-
+  sendOSC("/Bike1/Rotations/", inputEdges_1/((float) runLength));
+  sendOSC("/Bike2/Rotations/", inputEdges_2/((float) runLength));
+   
+   Serial.println(inputEdges_1);
   // work out if anyone has won
   if (running_1 == true && inputEdges_1 >= runLength) {
+    Serial.println("winner");
     sendOSC("/Bike1/Winner", 1);
     running_1 = false;                // toggle running variable
-    delay(30000);
+    delay(winner_delay);
     sendOSC("/Bike1/ON", 1);
   }
   if (running_2 == true && inputEdges_2 >= runLength) {
     sendOSC("/Bike2/Winner", 1);
     running_2 = false;                // toggle running variable
-    delay(30000);
+    delay(winner_delay);
     sendOSC("/Bike1/ON", 1);
   }  
 
   // calculate velocities (averaging library works on integer so may need a conversion factor...)
-  timer_1 = millis()-lastEdgeTime_1;
-  vel_1 = (7.44/timer_1) * 22;  // convert time between pulses to mph
-  av_vel_1 = myRA_1.reading(vel_1);  // add value and return moving average velocity
-
-  timer_2 = millis()-lastEdgeTime_2;
-  vel_2 = (7.44/timer_2) * 22;  // convert time between pulses to mph (multiplied by 10)
-  av_vel_2 = myRA_2.reading(vel_2);  // add value and return moving average velocity (divided by 10)
-
+  timer_1 = micros()-lastEdgeTime_1;
+  vel_1 = (0.0075*1000000/(timer_1));  // convert time between pulses to mph
+  vel_1 = (int) vel_1;
+  myRA_1.add(vel_1);  // add value and return moving average velocity
+  av_vel_1 = myRA_1.get();
+  
+  timer_2 = micros()-lastEdgeTime_2;
+  vel_2 = (0.0075*1000000/timer_2);  // convert time between pulses to mph (multiplied by 10)
+  myRA_2.add(vel_2);  // add value and return moving average velocity
+  av_vel_2 = myRA_2.get();
+  
   // send average velocity as OSC
   sendOSC("/Bike1/Speed/", av_vel_1);
   sendOSC("/Bike2/Speed/", av_vel_2);
 }
-
 
 //Turn off output, reset pulse counter and set state variable to false
 void turnOff() {
@@ -140,22 +149,20 @@ void turnOn() {
 
 //Interrupt subroutine, refresh last impulse timestamp and increment pulse counter (until 10000 is reached)
 void pulse_1() {
-  lastEdgeTime_1=millis();
+  lastEdgeTime_1=micros();
   if (inputEdges_1<runLength) {
     inputEdges_1++;
-
   }
 }
 
 void pulse_2() {
-  lastEdgeTime_2=millis();
+  lastEdgeTime_2=micros();
   if (inputEdges_2<runLength) {
     inputEdges_2++;
-
   }
 }
 
-void sendOSC(String msg, int32_t data) {
+void sendOSC(String msg, float data) {
 
   OSCMessage msgOUT(msg.c_str());
   msgOUT.add(data);
@@ -163,5 +170,4 @@ void sendOSC(String msg, int32_t data) {
   msgOUT.send(Udp);
   Udp.endPacket();
   msgOUT.empty();
-
 }
