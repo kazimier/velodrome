@@ -5,6 +5,7 @@
 #include <SPI.h>
 #include <OSCMessage.h>
 #include <Smoothed.h>
+#include <ezButton.h>
 
 // 28.5mm diameter axle on stand
 // diameter = 0.0895m
@@ -33,6 +34,10 @@ byte mac [] = {
 //Hardware constants
 const int PASPin_1 = 2;    // input from PAS 1
 const int PASPin_2 = 3;    // input from PAS 2
+
+// setup buttons on pins:
+ezButton button1(5);
+ezButton button2(6);
 
 bool state=false; // variable holding information about the state of the output
 
@@ -69,26 +74,28 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PASPin_2), pulse_2, RISING); //Each rising edge on PAS pin causes an interrupt
   myRA_1.begin(SMOOTHED_AVERAGE, 30);
   myRA_2.begin(SMOOTHED_AVERAGE, 30);
+  // set button debounce times
+  button1.setDebounceTime(50); // set debounce time to 50 milliseconds
+  button2.setDebounceTime(50); // set debounce time to 50 milliseconds
 }
 
 void loop() {
-  //If PAS signal on either bike is inactive for too long, turn off everything
-//  unsigned long curTime=micros();
-//  if ((curTime>lastEdgeTime_1)&&((curTime-lastEdgeTime_1)>activityTimeoutMS) || (curTime>lastEdgeTime_2)&&((curTime-lastEdgeTime_2)>activityTimeoutMS)) {
-//    Serial.println("switching off");
-//    turnOff();
-//    sendOSC("/Bike1/OFF", 1);
-//    sendOSC("/Bike2/OFF", 1);
-//  }
 
-  //If system is off, check if the impulses are active
-  if ((!state)&&((micros()-lastEdgeTime_1)<activityTimeoutMS)&&((micros()-lastEdgeTime_2)<activityTimeoutMS)) {
-    //if impulses are active, check if there were enough pulses from both bikes to turn on
-    if ((inputEdges_1>startPulses_1)&&(inputEdges_2>startPulses_2)) {
-      turnOn();
-      sendOSC("/Bike1/ON", 1);
-      sendOSC("/Bike2/ON", 1);      
-    }
+  button1.loop(); // MUST call the loop() function first
+  button2.loop(); // MUST call the loop() function first
+  
+// add reset button to restart game
+// add ambient button to enter ambient mode
+  int btn1State = button1.getState();
+  int btn2State = button2.getState();
+  if(button1.isPressed()) {
+    turnOn();
+    sendOSC("/Bike1/ON", 1);
+    sendOSC("/Bike2/ON", 1); 
+  }    
+  if(button2.isPressed()) {
+     turnOff();
+     sendOSC("/Ambient/", 1);
   }
 
   // send pulses as OSC
