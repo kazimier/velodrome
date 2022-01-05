@@ -110,12 +110,16 @@ void loop() {
     sendOSC("/Bike1/Winner", 1);
     running_1 = false;                // toggle running variable
     delay(winner_delay);
+    turnOff();      // reset all counters
+    turnOn();       // start game
     sendOSC("/Bike1/ON", 1);
   }
   if (running_2 == true && inputEdges_2 >= runLength) {
     sendOSC("/Bike2/Winner", 1);
     running_2 = false;                // toggle running variable
     delay(winner_delay);
+    turnOff();      // reset all counters
+    turnOn();       // start game    
     sendOSC("/Bike1/ON", 1);
   }  
 
