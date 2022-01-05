@@ -89,20 +89,21 @@ void loop() {
   int btn1State = button1.getState();
   int btn2State = button2.getState();
   if(button1.isPressed()) {
-    turnOn();
+    turnOff();      // reset all counters
+    turnOn();       // start game
     sendOSC("/Bike1/ON", 1);
-    sendOSC("/Bike2/ON", 1); 
+    sendOSC("/Bike2/ON", 1);
   }    
   if(button2.isPressed()) {
-     turnOff();
-     sendOSC("/Ambient/", 1);
+    turnOff();
+    sendOSC("/Ambient/", 1);
   }
 
   // send pulses as OSC
   sendOSC("/Bike1/Rotations/", inputEdges_1/((float) runLength));
   sendOSC("/Bike2/Rotations/", inputEdges_2/((float) runLength));
    
-   Serial.println(inputEdges_1);
+  Serial.println(inputEdges_1);
   // work out if anyone has won
   if (running_1 == true && inputEdges_1 >= runLength) {
     Serial.println("winner");
@@ -137,6 +138,7 @@ void loop() {
 
 //Turn off output, reset pulse counter and set state variable to false
 void turnOff() {
+  
   noInterrupts();
   inputEdges_1=0;
   inputEdges_2=0;  
@@ -144,13 +146,14 @@ void turnOff() {
   interrupts();
   running_1 = false;
   running_2 = false;
+  
 }
 
 //Turn on output and set state variable to true
 void turnOn() {
   state=true;
   running_1  = true;
-  running_2  = true;  
+  running_2  = true; 
 }
 
 
