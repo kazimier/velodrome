@@ -6,7 +6,7 @@
 #include <OSCMessage.h>
 #include <Smoothed.h>
 #include <ezButton.h>
-
+ 
 // 28.5mm diameter axle on stand
 // diameter = 0.0895m
 // 12 magnet sensor means distance covered per trigger = 0.0075m
@@ -16,7 +16,7 @@ const int winner_delay = 20000;
 // approximate distance = 750m
 const unsigned long runLength = 50000;
 // Allowed PAS signal inactivity time before turning off (microseconds)
-const unsigned long activityTimeoutMS= 10  * 1000000; 
+const unsigned long activityTimeoutMS= 10  * 1000000;
 
 // running average over 200 samples
 Smoothed <float> myRA_1;
