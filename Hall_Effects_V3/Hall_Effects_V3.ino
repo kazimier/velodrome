@@ -1,9 +1,9 @@
 
 #include <OSCMessage.h>
+#include <OSCBundle.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include <SPI.h>
-#include <OSCMessage.h>
 #include <Smoothed.h>
 #include <ezButton.h>
  
@@ -14,7 +14,7 @@
 // delay (milliseconds) after winner until game restarts 
 const int winner_delay = 20000;
 // approximate distance = 750m
-const unsigned long runLength = 50000;
+unsigned long runLength = 50000;  // default value - can be changed by sending OSC message '/length, value'
 // Allowed PAS signal inactivity time before turning off (microseconds)
 const unsigned long activityTimeoutMS= 10  * 1000000;
 
@@ -27,6 +27,7 @@ EthernetUDP Udp;
 IPAddress ip(192, 168, 0, 100);
 IPAddress outIp(192, 168, 0, 64);
 const unsigned int outPort = 9999;
+const unsigned int inPort = 8888;
 
 byte mac [] = {
   0xA8, 0x61, 0x0A, 0xAE, 0x5E, 0xED };
@@ -67,7 +68,7 @@ boolean running_2 = false;
 void setup() {
   Serial.begin(115200);
   Ethernet.begin(mac,ip);
-  Udp.begin(8888);
+  Udp.begin(8888);    // receive port
   pinMode(PASPin_1, INPUT); // initialize the PAS pin as a input
   pinMode(PASPin_2, INPUT); // initialize the PAS pin as a input
   attachInterrupt(digitalPinToInterrupt(PASPin_1), pulse_1, RISING); //Each rising edge on PAS pin causes an interrupt
@@ -80,6 +81,8 @@ void setup() {
 }
 
 void loop() {
+
+  receiveOSC();
 
   button1.loop(); // MUST call the loop() function first
   button2.loop(); // MUST call the loop() function first
@@ -176,8 +179,27 @@ void pulse_2() {
   }
 }
 
-void receiveOSC(){
-  
+//reads and dispatches the incoming OSC
+void receiveOSC() {
+  OSCMessage msg;
+  int size = Udp.parsePacket();
+
+  if (size > 0) {
+    while (size--) {
+      msg.fill(Udp.read());
+    }
+    if (!msg.hasError()) {
+      msg.dispatch("/length", routeLength);
+    } else {
+      Serial.print("error: ");
+    }
+  }
+}
+
+// function to route OSC data to
+void routeLength(OSCMessage &msg) {
+  runLength = msg.getInt(0);
+  sendOSC("/length", runLength);
 }
 
 void sendOSC(String msg, float data) {
