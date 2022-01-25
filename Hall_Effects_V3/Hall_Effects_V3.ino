@@ -176,6 +176,10 @@ void pulse_2() {
   }
 }
 
+void receiveOSC(){
+  
+}
+
 void sendOSC(String msg, float data) {
 
   OSCMessage msgOUT(msg.c_str());
